@@ -1,9 +1,23 @@
 describe('Hacker Stories', () => {
   beforeEach(() => {
-    cy.visit('/')
 
-    cy.assertLoadingIsShownAndHidden()
-    cy.contains('More').should('be.visible')
+    // cy.intercept( //interceptar Requisição
+    //     'GET',
+    //     'search?query=React&page=0'
+    // ).as('getStories') //Deu um alias para req //Refatorado
+
+    cy.intercept({
+      method:'GET',
+      pathname: 'search',
+      query: {
+        query: 'React',
+        page: '0'
+      }
+    }).as('getStories')
+
+
+    cy.visit('/')
+    cy.wait('@getStories')
   })
 
   it('shows the footer', () => {
@@ -21,11 +35,19 @@ describe('Hacker Stories', () => {
     it.skip('shows the right data for all rendered stories', () => {})
 
     it('shows 20 stories, then the next 20 after clicking "More"', () => {
+      cy.intercept({
+        method:'GET',
+        pathname: 'search',
+        query: {
+          query: 'React',
+          page: '1'
+        }
+      }).as('getNextStories')
+
+
       cy.get('.item').should('have.length', 20)
-
       cy.contains('More').click()
-
-      cy.assertLoadingIsShownAndHidden()
+      cy.wait('@getNextStories')
 
       cy.get('.item').should('have.length', 40)
     })
@@ -68,31 +90,31 @@ describe('Hacker Stories', () => {
     const newTerm = 'Cypress'
 
     beforeEach(() => {
-      cy.get('#search')
-        .clear()
+      cy.intercept(
+          'GET',
+          `search?query=${newTerm}&page=0`
+      ).as('getNemTermStories')
+
+      cy.get('#search').clear()
     })
 
     it('types and hits ENTER', () => {
       cy.get('#search')
         .type(`${newTerm}{enter}`)
 
-      cy.assertLoadingIsShownAndHidden()
+      cy.wait('@getNemTermStories')
 
-      cy.get('.item').should('have.length', 20)
-      cy.get('.item')
-        .first()
-        .should('contain', newTerm)
+      cy.get('.item').should('have.length', 20) //Existem 20 itens assim ?
+      cy.get('.item').first().should('contain', newTerm) //Primeiro item tem o termo q foi buscado ?
       cy.get(`button:contains(${initialTerm})`)
         .should('be.visible')
     })
 
     it('types and clicks the submit button', () => {
-      cy.get('#search')
-        .type(newTerm)
-      cy.contains('Submit')
-        .click()
+      cy.get('#search').type(newTerm)
+      cy.contains('Submit').click()
 
-      cy.assertLoadingIsShownAndHidden()
+      cy.wait('@getNemTermStories')
 
       cy.get('.item').should('have.length', 20)
       cy.get('.item')
@@ -107,35 +129,32 @@ describe('Hacker Stories', () => {
         cy.get('#search')
           .type(`${newTerm}{enter}`)
 
-        cy.assertLoadingIsShownAndHidden()
+        cy.wait('@getNemTermStories')
+        cy.get(`button:contains(${initialTerm})`).should('be.visible').click()
 
-        cy.get(`button:contains(${initialTerm})`)
-          .should('be.visible')
-          .click()
-
-        cy.assertLoadingIsShownAndHidden()
+        cy.wait('@getStories')
 
         cy.get('.item').should('have.length', 20)
-        cy.get('.item')
-          .first()
-          .should('contain', initialTerm)
-        cy.get(`button:contains(${newTerm})`)
-          .should('be.visible')
+        cy.get('.item').first().should('contain', initialTerm)
+        cy.get(`button:contains(${newTerm})`).should('be.visible')
       })
 
       it('shows a max of 5 buttons for the last searched terms', () => {
         const faker = require('faker')
 
+        cy.intercept(
+            'GET',
+            'search**'
+        ).as('getRandomStories');
+
         Cypress._.times(6, () => {
           cy.get('#search')
             .clear()
             .type(`${faker.random.word()}{enter}`)
-        })
+          cy.wait('@getRandomStories')
+        });
+        cy.get('.last-searches button').should('have.length', 5)
 
-        cy.assertLoadingIsShownAndHidden()
-
-        cy.get('.last-searches button')
-          .should('have.length', 5)
       })
     })
   })
